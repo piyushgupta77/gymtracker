@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../models/workout.dart';
 import '../providers/workout_provider.dart';
+import '../utils/category_colors.dart';
 
 const List<String> _workoutCategories = <String>[
   'Chest',
@@ -88,35 +89,14 @@ class _WorkoutDetailsScreenState extends State<WorkoutDetailsScreen> {
     super.dispose();
   }
 
-  void _onCancel() {
+  /// Handle back button - auto-save workout
+  Future<void> _onBack() async {
     if (_hasChanges) {
-      _showUnsavedChangesDialog();
+      // Auto-save on back press
+      await _onSave();
     } else {
       Navigator.of(context).pop();
     }
-  }
-
-  void _showUnsavedChangesDialog() {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Unsaved Changes'),
-        content: const Text('You have unsaved changes. Do you want to discard them?'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(),
-            child: const Text('Cancel'),
-          ),
-          TextButton(
-            onPressed: () {
-              Navigator.of(context).pop();
-              Navigator.of(context).pop();
-            },
-            child: const Text('Discard'),
-          ),
-        ],
-      ),
-    );
   }
 
   Future<void> _onSave() async {
@@ -181,15 +161,15 @@ class _WorkoutDetailsScreenState extends State<WorkoutDetailsScreen> {
       canPop: false,
       onPopInvokedWithResult: (didPop, result) {
         if (didPop) return;
-        _onCancel();
+        _onBack();
       },
       child: Scaffold(
         appBar: AppBar(
           title: const Text('Workout Details'),
           leading: IconButton(
-            icon: const Icon(Icons.close),
-            onPressed: _onCancel,
-            tooltip: 'Cancel',
+            icon: const Icon(Icons.arrow_back),
+            onPressed: _onBack,
+            tooltip: 'Back',
           ),
           elevation: 0,
         ),
@@ -231,7 +211,20 @@ class _WorkoutDetailsScreenState extends State<WorkoutDetailsScreen> {
                             .map(
                               (category) => DropdownMenuItem<String>(
                                 value: category,
-                                child: Text(_categoryLabel(category)),
+                                child: Row(
+                                  children: [
+                                    Container(
+                                      width: 16,
+                                      height: 16,
+                                      decoration: BoxDecoration(
+                                        color: CategoryColors.getColor(category),
+                                        shape: BoxShape.circle,
+                                      ),
+                                    ),
+                                    const SizedBox(width: 10),
+                                    Text(_categoryLabel(category)),
+                                  ],
+                                ),
                               ),
                             )
                             .toList(),
@@ -330,30 +323,21 @@ class _WorkoutDetailsScreenState extends State<WorkoutDetailsScreen> {
                 right: 12,
                 top: 12,
               ),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: OutlinedButton(
-                      onPressed: workoutProvider.isLoading ? null : _onCancel,
-                      child: const Text('Cancel'),
+              child: SizedBox(
+                width: double.infinity,
+                child: FilledButton(
+                  onPressed: workoutProvider.isLoading ? null : _onSave,
+                  child: workoutProvider.isLoading
+                      ? const SizedBox(
+                    height: 24,
+                    width: 24,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
                     ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: ElevatedButton(
-                      onPressed: workoutProvider.isLoading ? null : _onSave,
-                      child: workoutProvider.isLoading
-                          ? const SizedBox(
-                        height: 24,
-                        width: 24,
-                        child: CircularProgressIndicator(
-                          strokeWidth: 2,
-                        ),
-                      )
-                          : const Text('Save'),
-                    ),
-                  ),
-                ],
+                  )
+                      : const Text('Save Workout'),
+                ),
               ),
             );
           },
@@ -362,6 +346,3 @@ class _WorkoutDetailsScreenState extends State<WorkoutDetailsScreen> {
     );
   }
 }
-
-
-

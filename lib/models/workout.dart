@@ -1,7 +1,11 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
+
 enum WorkoutTime { morning, evening }
 
 class Workout {
   final int? id;
+  final String? firebaseId;
+  final String? userId;
   final DateTime date;
   final String title;
   final String notes;
@@ -11,6 +15,8 @@ class Workout {
 
   Workout({
     this.id,
+    this.firebaseId,
+    this.userId,
     required this.date,
     required this.title,
     required this.notes,
@@ -28,6 +34,8 @@ class Workout {
   Map<String, dynamic> toMap() {
     return {
       'id': id,
+      'firebaseId': firebaseId,
+      'userId': userId,
       'date': date.toIso8601String(),
       'title': title,
       'notes': notes,
@@ -41,13 +49,64 @@ class Workout {
   factory Workout.fromMap(Map<String, dynamic> map) {
     return Workout(
       id: map['id'] as int?,
-      date: DateTime.parse(map['date'] as String),
+      firebaseId: map['firebaseId'] as String?,
+      userId: map['userId'] as String?,
+      date: _parseDateTime(map['date']),
       title: map['title'] as String,
       notes: map['notes'] as String,
       timeOfDay: _parseTimeOfDay(map['timeOfDay'] as String?),
-      createdAt: DateTime.parse(map['createdAt'] as String),
-      updatedAt: map['updatedAt'] != null ? DateTime.parse(map['updatedAt'] as String) : null,
+      createdAt: _parseDateTime(map['createdAt']),
+      updatedAt: map['updatedAt'] != null ? _parseDateTime(map['updatedAt']) : null,
     );
+  }
+
+  factory Workout.fromFirestore(
+    String firebaseId,
+    String userId,
+    Map<String, dynamic> data,
+  ) {
+    return Workout(
+      firebaseId: firebaseId,
+      userId: userId,
+      date: _parseDateTime(data['date']),
+      title: (data['title'] as String?) ?? '',
+      notes: (data['notes'] as String?) ?? '',
+      timeOfDay: _parseTimeOfDay(data['timeOfDay'] as String?),
+      createdAt: data['createdAt'] != null
+          ? _parseDateTime(data['createdAt'])
+          : DateTime.now(),
+      updatedAt:
+          data['updatedAt'] != null ? _parseDateTime(data['updatedAt']) : null,
+    );
+  }
+
+  Map<String, dynamic> toFirestoreMap() {
+    return {
+      'firebaseId': firebaseId,
+      'userId': userId,
+      'date': Timestamp.fromDate(normalizeDate(date)),
+      'title': title,
+      'notes': notes,
+      'timeOfDay': timeOfDay.name,
+      'createdAt': Timestamp.fromDate(createdAt),
+      'updatedAt': updatedAt != null ? Timestamp.fromDate(updatedAt!) : null,
+    };
+  }
+
+  static DateTime _parseDateTime(dynamic value) {
+    if (value is Timestamp) {
+      return value.toDate();
+    }
+
+    if (value is DateTime) {
+      return value;
+    }
+
+    if (value is String) {
+      return DateTime.parse(value);
+    }
+
+    throw ArgumentError('Unsupported date value: $value');
   }
 
   /// Helper to parse timeOfDay from string
@@ -63,6 +122,8 @@ class Workout {
   /// Create a copy of Workout with optional field updates
   Workout copyWith({
     int? id,
+    String? firebaseId,
+    String? userId,
     DateTime? date,
     String? title,
     String? notes,
@@ -72,6 +133,8 @@ class Workout {
   }) {
     return Workout(
       id: id ?? this.id,
+      firebaseId: firebaseId ?? this.firebaseId,
+      userId: userId ?? this.userId,
       date: date ?? this.date,
       title: title ?? this.title,
       notes: notes ?? this.notes,
@@ -83,7 +146,7 @@ class Workout {
 
   @override
   String toString() {
-    return 'Workout(id: $id, date: $date, title: $title, timeOfDay: $timeOfDay, notes: $notes, createdAt: $createdAt, updatedAt: $updatedAt)';
+    return 'Workout(id: $id, firebaseId: $firebaseId, userId: $userId, date: $date, title: $title, timeOfDay: $timeOfDay, notes: $notes, createdAt: $createdAt, updatedAt: $updatedAt)';
   }
 }
 

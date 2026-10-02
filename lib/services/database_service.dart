@@ -4,6 +4,7 @@ import '../models/workout.dart';
 
 class DatabaseService {
   static const String tableName = 'workouts';
+  static const int _databaseVersion = 2;
   static Database? _database;
 
   /// Get or initialize database
@@ -19,8 +20,9 @@ class DatabaseService {
 
     return openDatabase(
       path,
-      version: 1,
+      version: _databaseVersion,
       onCreate: _createTables,
+      onUpgrade: _onUpgrade,
     );
   }
 
@@ -30,6 +32,8 @@ class DatabaseService {
       '''
       CREATE TABLE $tableName (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
+        firebaseId TEXT,
+        userId TEXT,
         date TEXT NOT NULL,
         title TEXT NOT NULL,
         notes TEXT NOT NULL,
@@ -44,35 +48,66 @@ class DatabaseService {
     await db.execute(
       'CREATE INDEX idx_date ON $tableName(date)',
     );
+    await db.execute(
+      'CREATE INDEX idx_user_date ON $tableName(userId, date)',
+    );
+  }
+
+  Future<void> _onUpgrade(Database db, int oldVersion, int newVersion) async {
+    if (oldVersion < 2) {
+      await db.execute(
+        'ALTER TABLE $tableName ADD COLUMN firebaseId TEXT',
+      );
+      await db.execute(
+        'ALTER TABLE $tableName ADD COLUMN userId TEXT',
+      );
+      await db.execute(
+        'CREATE INDEX IF NOT EXISTS idx_user_date ON $tableName(userId, date)',
+      );
+    }
   }
 
   /// Insert or update a workout
   Future<int> saveWorkout(Workout workout) async {
     final db = await database;
+
+    if (workout.userId == null || workout.userId!.isEmpty) {
+      throw Exception('A userId is required to save a workout locally');
+    }
+
     try {
-      if (workout.id == null) {
-        // Insert new workout
-        return await db.insert(tableName, workout.toMap());
-      } else {
-        // Update existing workout
-        await db.update(
-          tableName,
-          workout.copyWith(updatedAt: DateTime.now()).toMap(),
-          where: 'id = ?',
-          whereArgs: [workout.id],
-        );
-        return workout.id!;
+      final workoutToPersist = workout.copyWith(
+        updatedAt: workout.updatedAt ?? DateTime.now(),
+      );
+
+      // If workout has no ID, it's a new creation - insert it
+      if (workoutToPersist.id == null) {
+        return await db.insert(tableName, workoutToPersist.toMap());
       }
+
+      // If workout has ID, it's an update - update the existing record
+      await db.update(
+        tableName,
+        workoutToPersist.toMap(),
+        where: 'id = ?',
+        whereArgs: [workoutToPersist.id],
+      );
+      return workoutToPersist.id!;
     } catch (e) {
       throw Exception('Error saving workout: $e');
     }
   }
 
   /// Get all workouts
-  Future<List<Workout>> getAllWorkouts() async {
+  Future<List<Workout>> getAllWorkouts({required String userId}) async {
     final db = await database;
     try {
-      final List<Map<String, dynamic>> maps = await db.query(tableName);
+      final List<Map<String, dynamic>> maps = await db.query(
+        tableName,
+        where: 'userId = ?',
+        whereArgs: [userId],
+        orderBy: 'date DESC',
+      );
       return List.generate(maps.length, (i) => Workout.fromMap(maps[i]));
     } catch (e) {
       throw Exception('Error fetching all workouts: $e');
@@ -80,14 +115,15 @@ class DatabaseService {
   }
 
   /// Get workout by date
-  Future<Workout?> getWorkoutByDate(DateTime date) async {
+  Future<Workout?> getWorkoutByDate(DateTime date, {required String userId}) async {
     final db = await database;
     try {
       final normalizedDate = Workout.normalizeDate(date);
       final List<Map<String, dynamic>> maps = await db.query(
         tableName,
-        where: 'date = ?',
-        whereArgs: [normalizedDate.toIso8601String()],
+        where: 'date = ? AND userId = ?',
+        whereArgs: [normalizedDate.toIso8601String(), userId],
+        limit: 1,
       );
 
       if (maps.isEmpty) return null;
@@ -98,7 +134,11 @@ class DatabaseService {
   }
 
   /// Get workouts in date range
-  Future<List<Workout>> getWorkoutsInRange(DateTime start, DateTime end) async {
+  Future<List<Workout>> getWorkoutsInRange(
+    DateTime start,
+    DateTime end, {
+    required String userId,
+  }) async {
     final db = await database;
     try {
       final normalizedStart = Workout.normalizeDate(start).toIso8601String();
@@ -106,14 +146,54 @@ class DatabaseService {
 
       final List<Map<String, dynamic>> maps = await db.query(
         tableName,
-        where: 'date BETWEEN ? AND ?',
-        whereArgs: [normalizedStart, normalizedEnd],
+        where: 'date BETWEEN ? AND ? AND userId = ?',
+        whereArgs: [normalizedStart, normalizedEnd, userId],
         orderBy: 'date DESC',
       );
 
       return List.generate(maps.length, (i) => Workout.fromMap(maps[i]));
     } catch (e) {
       throw Exception('Error fetching workouts in range: $e');
+    }
+  }
+
+  Future<void> replaceWorkoutsForUser(
+    String userId,
+    List<Workout> workouts,
+  ) async {
+    final db = await database;
+
+    try {
+      await db.transaction((txn) async {
+        await txn.delete(
+          tableName,
+          where: 'userId = ?',
+          whereArgs: [userId],
+        );
+
+        for (final workout in workouts) {
+          await txn.insert(
+            tableName,
+            workout.copyWith(userId: userId).toMap()..remove('id'),
+          );
+        }
+      });
+    } catch (e) {
+      throw Exception('Error replacing workouts for user: $e');
+    }
+  }
+
+  Future<void> clearWorkoutsForUser(String userId) async {
+    final db = await database;
+
+    try {
+      await db.delete(
+        tableName,
+        where: 'userId = ?',
+        whereArgs: [userId],
+      );
+    } catch (e) {
+      throw Exception('Error clearing workouts for user: $e');
     }
   }
 
@@ -138,4 +218,3 @@ class DatabaseService {
     _database = null;
   }
 }
-
