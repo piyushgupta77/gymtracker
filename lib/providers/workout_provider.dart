@@ -149,6 +149,8 @@ class WorkoutProvider extends ChangeNotifier {
       );
 
       // STEP 1: Save to local DB immediately
+      // ignore: avoid_print
+      print('💾 Saving workout to SQLite: ${localDraft.title}');
       final localId = await _databaseService.saveWorkout(localDraft);
 
       // STEP 2: Update UI immediately with local ID
@@ -156,6 +158,8 @@ class WorkoutProvider extends ChangeNotifier {
       await _upsertInMemoryWorkout(savedWorkout);
       _selectedWorkout = savedWorkout;
       notifyListeners();
+      // ignore: avoid_print
+      print('✅ Workout saved to SQLite with ID: $localId');
 
       _setLoading(false);
 
@@ -164,6 +168,8 @@ class WorkoutProvider extends ChangeNotifier {
     } catch (e) {
       _setError('Failed to save workout locally: $e');
       _setLoading(false);
+      // ignore: avoid_print
+      print('❌ Error saving workout: $e');
     }
   }
 
@@ -209,6 +215,11 @@ class WorkoutProvider extends ChangeNotifier {
     _clearError();
 
     try {
+      final workoutToDelete = _workouts.cast<Workout?>().firstWhere(
+        (workout) => workout?.id == workoutId,
+        orElse: () => _selectedWorkout?.id == workoutId ? _selectedWorkout : null,
+      );
+
       // STEP 1: Delete from local DB immediately
       await _databaseService.deleteWorkout(workoutId);
 
@@ -222,15 +233,31 @@ class WorkoutProvider extends ChangeNotifier {
       _setLoading(false);
 
       // STEP 3: Delete from Firebase in background (non-blocking)
-      if (_selectedWorkout?.firebaseId != null) {
-        await _firestoreWorkoutService.deleteWorkout(
+      final firebaseId = workoutToDelete?.firebaseId;
+      if (firebaseId != null && firebaseId.isNotEmpty) {
+        _deleteWorkoutFromFirebaseBackground(
           userId: _currentUserId!,
-          firebaseId: _selectedWorkout!.firebaseId!,
+          firebaseId: firebaseId,
         );
       }
     } catch (e) {
       _setError('Failed to delete workout: $e');
       _setLoading(false);
+    }
+  }
+
+  Future<void> _deleteWorkoutFromFirebaseBackground({
+    required String userId,
+    required String firebaseId,
+  }) async {
+    try {
+      await _firestoreWorkoutService.deleteWorkout(
+        userId: userId,
+        firebaseId: firebaseId,
+      );
+    } catch (e) {
+      // ignore: avoid_print
+      print('⚠️ Firebase delete error (workout deleted locally): $e');
     }
   }
 
@@ -278,9 +305,16 @@ class WorkoutProvider extends ChangeNotifier {
         _currentUserId!,
       );
 
+      // Only replace local workouts if we successfully got data from Firebase
+      // This prevents offline mode from deleting or overwriting local data
       await _databaseService.replaceWorkoutsForUser(_currentUserId!, remoteWorkouts);
+      // ignore: avoid_print
+      print('✅ Synced ${remoteWorkouts.length} workouts from Firebase');
     } catch (e) {
-      _setError('Failed to sync workouts from Firebase: $e');
+      // Silently fail in offline mode - keep local data intact
+      // User's offline workouts will sync when connectivity is restored
+      // ignore: avoid_print
+      print('⚠️ Firebase sync failed (offline mode?), keeping local data: $e');
     } finally {
       _setLoading(false);
     }

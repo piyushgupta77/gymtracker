@@ -95,6 +95,7 @@ class _HomeScreenState extends State<HomeScreen> {
           const SnackBar(
             content: Text('Workout deleted successfully'),
             backgroundColor: Colors.green,
+            duration: Duration(milliseconds: 500),
           ),
         );
       }
@@ -122,7 +123,13 @@ class _HomeScreenState extends State<HomeScreen> {
       ).then((_) async {
         // Reload workouts after returning from details screen
         if (mounted) {
+          // ignore: avoid_print
+          print('🔄 Reloading workouts from SQLite...');
           await workoutProvider.loadAllWorkouts();
+          // Refresh selected date to show updated workouts
+          await workoutProvider.setSelectedDate(_selectedDay);
+          // ignore: avoid_print
+          print('✅ Workouts reloaded - Total: ${workoutProvider.workouts.length}');
         }
       });
     }
@@ -139,7 +146,13 @@ class _HomeScreenState extends State<HomeScreen> {
       ).then((_) async {
         // Reload workouts after returning from details screen
         if (mounted) {
+          // ignore: avoid_print
+          print('🔄 Reloading workouts from SQLite...');
           await workoutProvider.loadAllWorkouts();
+          // Refresh selected date to show updated workouts
+          await workoutProvider.setSelectedDate(_selectedDay);
+          // ignore: avoid_print
+          print('✅ Workouts reloaded - Total: ${workoutProvider.workouts.length}');
         }
       });
     }
