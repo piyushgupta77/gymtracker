@@ -1,0 +1,8 @@
+flutter_launcher_icons:
+  android: "ic_launcher"
+  ios: false
+  image_path: assets/ic_launcher.png
+
+  # Android Adaptive Icon Config
+  adaptive_icon_background: "#000000"    # Matches your black background
+  adaptive_icon_foreground: "assets/ic_launcher.png" # Central graphic with transparent padding

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:table_calendar/table_calendar.dart';
 
@@ -48,6 +49,29 @@ class _HomeScreenState extends State<HomeScreen> {
       SnackBar(
         content: Text(authProvider.errorMessage!),
         backgroundColor: Theme.of(context).colorScheme.error,
+      ),
+    );
+  }
+
+  void _showLogoutConfirmationDialog() {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Logout'),
+        content: const Text('Are you sure you want to logout?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () {
+              Navigator.of(context).pop();
+              _logout();
+            },
+            child: const Text('Logout'),
+          ),
+        ],
       ),
     );
   }
@@ -171,7 +195,7 @@ class _HomeScreenState extends State<HomeScreen> {
     return GestureDetector(
       onTap: () => _openWorkoutDetailsScreen(workout),
       child: Container(
-        margin: const EdgeInsets.only(bottom: 8),
+        margin: const EdgeInsets.only(bottom: 12),
         decoration: BoxDecoration(
           border: Border(
             left: BorderSide(
@@ -185,12 +209,13 @@ class _HomeScreenState extends State<HomeScreen> {
           elevation: 1,
           margin: EdgeInsets.zero,
           child: Padding(
-            padding: const EdgeInsets.all(10.0),
+            padding: const EdgeInsets.all(16.0),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 // Title and Time Row
                 Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
                     Expanded(
@@ -200,7 +225,6 @@ class _HomeScreenState extends State<HomeScreen> {
                           color: CategoryColors.getColor(workout.title),
                           fontWeight: FontWeight.bold,
                         ),
-                        overflow: TextOverflow.ellipsis,
                       ),
                     ),
                     const SizedBox(width: 8),
@@ -223,19 +247,17 @@ class _HomeScreenState extends State<HomeScreen> {
                   ],
                 ),
                 if (workout.notes.isNotEmpty) ...[
-                  const SizedBox(height: 6),
+                  const SizedBox(height: 12),
                   Text(
                     workout.notes,
                     style: Theme.of(context).textTheme.bodySmall,
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
                   ),
                 ],
                 // Delete button
                 Align(
                   alignment: Alignment.bottomRight,
                   child: Padding(
-                    padding: const EdgeInsets.only(top: 6),
+                    padding: const EdgeInsets.only(top: 12),
                     child: GestureDetector(
                       onTap: () => _showDeleteConfirmationDialog(workoutId: workout.id ?? 0),
                       child: Container(
@@ -265,13 +287,18 @@ class _HomeScreenState extends State<HomeScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Gym Tracker'),
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back),
+          tooltip: 'Close app',
+          onPressed: SystemNavigator.pop,
+        ),
+        title: const Text('Workout Tracker'),
         elevation: 0,
         actions: [
           Consumer<AuthProvider>(
             builder: (context, authProvider, child) {
               return IconButton(
-                onPressed: authProvider.isLoading ? null : _logout,
+                onPressed: authProvider.isLoading ? null : _showLogoutConfirmationDialog,
                 icon: const Icon(Icons.logout),
                 tooltip: 'Logout',
               );
